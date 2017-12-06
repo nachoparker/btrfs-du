@@ -1,0 +1,86 @@
+#!/bin/bash
+
+#
+# Script that outputs the filesystem usage of snapshots in a location ( root if omited )
+#
+# Usage:
+#          sudo btrfs-du ( path )
+#
+# Copyleft 2017 by Ignacio Nunez Hernanz <nacho _a_t_ ownyourbits _d_o_t_ com>
+# GPL licensed (see end of file) * Use at your own risk!
+#
+# Based on btrfs-size by Kyle Agronick
+#
+# More at https://ownyourbits.com/2017/12/06/check-disk-space-of-your-btrfs-snapshots-with-btrfs-du/
+#
+
+LOCATION=${1:-/}
+
+# checks
+[[ ${EUID} -ne 0 ]] && {
+  printf "Must be run as root. Try 'sudo $( basename "$0" )'\n"
+  exit 1
+}
+
+[[ -d "$LOCATION" ]] || {
+  echo "$LOCATION not found"
+  exit 1
+}
+
+[[ "$( stat -fc%T "$LOCATION" )" != "btrfs" ]] && {
+  echo "$LOCATION is not in a BTRFS system"
+  exit 1
+}
+
+btrfs qgroup show "$LOCATION" 2>&1 | grep -q "quotas not enabled" && {
+  QFLAG=1
+  btrfs quota enable "$LOCATION"
+}
+
+# data
+OUT=$( btrfs subvolume list --sort=rootid "$LOCATION" | cut -d ' ' -f 2,9 )
+ID__=( $( awk '{ print $1 }' <<< "$OUT" ) )
+NAME=( $( awk '{ print $2 }' <<< "$OUT" ) )
+
+OUT=$( btrfs qgroup show --sync --si --sort=qgroupid "$LOCATION" | sed '1,3d' )
+TOT_=( $( awk '{ print $2 }' <<< "$OUT" ) )
+EXCL=( $( awk '{ print $3 }' <<< "$OUT" ) )
+
+EXCL_RAW=( $( btrfs qgroup show --sync --raw "$LOCATION" | sed '1,2d' | awk '{  print $3 }' ) )
+EXCL_TOTAL=0
+
+[[ "$QFLAG" == "1" ]] && btrfs quota disable "$LOCATION"
+
+# output
+printf "%-60s %-10s %-10s %-10s\n" "Subvolume" "Total" "Exclusive" "ID"
+printf "─────────────────────────────────────────────────────────────────────────────────────────\n"
+
+for (( i = 0 ; i < ${#NAME[@]} ; i++ ))
+{
+  printf "%-60s %-10s %-10s %-10s\n" ${NAME[$i]} ${TOT_[$i]} ${EXCL[$i]} ${ID__[$i]}
+  EXCL_TOTAL=$(( EXCL_TOTAL + ${EXCL_RAW[$i]} ))
+}
+
+EXCL_TOTAL=$( awk '{ sum=$1 ; hum[1024^4]="TB";hum[1024^3]="GB";hum[1024^2]="MB";hum[1024]="KB";
+              for (x=1024^4; x>=1024; x/=1024){ if (sum>=x) { printf "%.2f%s\n",sum/x,hum[x];break } }}' \
+              <<< "$EXCL_TOTAL" )
+
+printf "─────────────────────────────────────────────────────────────────────────────────────────\n"
+printf "%86s\n" "Total exclusive data: $EXCL_TOTAL"
+
+# License
+#
+# This script is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This script is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this script; if not, write to the
+# Free Software Foundation, Inc., 59 Temple Place, Suite 330,
+# Boston, MA  02111-1307  USA
