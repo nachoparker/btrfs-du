@@ -38,15 +38,16 @@ btrfs qgroup show "$LOCATION" 2>&1 | grep -q "quotas not enabled" && {
 }
 
 # data
+sync
 OUT=$( btrfs subvolume list --sort=rootid "$LOCATION" | cut -d ' ' -f 2,9 )
 ID__=( $( awk '{ print $1 }' <<< "$OUT" ) )
 NAME=( $( awk '{ print $2 }' <<< "$OUT" ) )
 
-OUT=$( btrfs qgroup show --sync --si --sort=qgroupid "$LOCATION" | sed '1,3d' )
+OUT=$( btrfs qgroup show --si --sort=qgroupid "$LOCATION" | sed '1,3d' )
 TOT_=( $( awk '{ print $2 }' <<< "$OUT" ) )
 EXCL=( $( awk '{ print $3 }' <<< "$OUT" ) )
 
-EXCL_RAW=( $( btrfs qgroup show --sync --raw "$LOCATION" | sed '1,2d' | awk '{  print $3 }' ) )
+EXCL_RAW=( $( btrfs qgroup show --raw "$LOCATION" | sed '1,2d' | awk '{  print $3 }' ) )
 EXCL_TOTAL=0
 
 [[ "$QFLAG" == "1" ]] && btrfs quota disable "$LOCATION"
