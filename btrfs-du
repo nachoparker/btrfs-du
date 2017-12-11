@@ -32,20 +32,33 @@ LOCATION=${1:-/}
   exit 1
 }
 
+# quota management
+sync
 btrfs qgroup show "$LOCATION" 2>&1 | grep -q "quotas not enabled" && {
   QFLAG=1
   btrfs quota enable "$LOCATION"
 }
 
+# if we just enabled quota, might have to wait for rescan
+OUT=$( btrfs qgroup show --si --sort=qgroupid "$LOCATION" 2>&1 )
+grep -q -e "rescan is running" -e "data inconsistent" <<< "$OUT" && {
+  echo "INFO: Quota is disabled. Waiting for rescan to finish ..."
+  while true; do
+    sleep 2
+    OUT=$( btrfs qgroup show --si --sort=qgroupid "$LOCATION" 2>&1 )
+    grep -q -e "rescan is running" -e "data inconsistent" <<< "$OUT" || break
+  done
+}
+
 # data
-sync
+OUT=$( sed '1,3d' <<< "$OUT" )
+TOT_=( $( awk '{ print $2 }' <<< "$OUT" ) )
+EXCL=( $( awk '{ print $3 }' <<< "$OUT" ) )
+
 OUT=$( btrfs subvolume list --sort=rootid "$LOCATION" | cut -d ' ' -f 2,9 )
 ID__=( $( awk '{ print $1 }' <<< "$OUT" ) )
 NAME=( $( awk '{ print $2 }' <<< "$OUT" ) )
 
-OUT=$( btrfs qgroup show --si --sort=qgroupid "$LOCATION" | sed '1,3d' )
-TOT_=( $( awk '{ print $2 }' <<< "$OUT" ) )
-EXCL=( $( awk '{ print $3 }' <<< "$OUT" ) )
 
 EXCL_RAW=( $( btrfs qgroup show --raw "$LOCATION" | sed '1,2d' | awk '{  print $3 }' ) )
 EXCL_TOTAL=0
