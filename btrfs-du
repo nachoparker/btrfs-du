@@ -14,6 +14,34 @@
 # More at https://ownyourbits.com/2017/12/06/check-disk-space-of-your-btrfs-snapshots-with-btrfs-du/
 #
 
+# bytesToHuman based on https://unix.stackexchange.com/questions/44040/a-standard-tool-to-convert-a-byte-count-into-human-kib-mib-etc-like-du-ls1/259254#259254
+# units from wikipedia (note I had to re-order Z and Y):
+# - https://en.wikipedia.org/wiki/Binary_prefix
+# - https://en.wikipedia.org/wiki/File_size
+# - https://en.wikipedia.org/wiki/ISO/IEC_80000#Information_science_and_technology 
+# test cases from https://www.alteeve.com/w/IEC_and_SI_Size_Notations and https://en.wikipedia.org/wiki/File_size
+# 64-bibt checks at https://superuser.com/questions/1030122/what-is-the-maximum-value-of-a-numeric-bash-shell-variable/1030129#1030129
+
+bytesToHumanIEC() {
+    b=${1:-0}; d=''; s=0; S=(Bytes {K,M,G,T,E,P,Z,Y}iB)
+    while ((b > 1024)); do
+        d="$(printf ".%02d" $((b % 1024 * 100 / 1024)))"
+        b=$((b / 1024))
+        let s++
+    done
+    echo "$b$d${S[$s]}"
+}
+
+bytesToHumanSI() {
+    b=${1:-0}; d=''; s=0; S=(Bytes {k,M,G,T,E,P,Z,Y}B)
+    while ((b > 1000)); do
+        d="$(printf ".%02d" $((b % 1000 * 100 / 1000)))"
+        b=$((b / 1000))
+        let s++
+    done
+    echo "$b$d${S[$s]}"
+}
+
 LOCATION=${1:-/}
 
 # checks
@@ -32,6 +60,26 @@ LOCATION=${1:-/}
   exit 1
 }
 
+# determine if the '--raw' option is supported:
+_btrfs_qgroup_show_raw="btrfs qgroup show --raw"
+
+OUT=$( $_btrfs_qgroup_show_raw 2>&1)
+
+# If you want to depend on bash string matching, replace the below grep with this:
+#if [[ "$OUT" == *"unrecognized option"* ]]; then
+#  echo "INFO: Legacy btrfs version; trying 'btrfs qgroup show' without '--raw'..."
+#  _btrfs_qgroup_show_raw="btrfs qgroup show"
+#fi    
+    
+## This check fails to recognise the failure:    
+grep -q "unrecognized option" <<< "$OUT" && {
+  echo "INFO: Legacy btrfs version; trying 'btrfs qgroup show' without '--raw'..."
+  # not supported by "Btrfs v3.12+20131125" and likekly other legacy versions
+  # luckily "Btrfs v3.12+20131125" gives the same output without '--raw'
+  # as "btrfs-progs v4.13.3" does with '--raw'
+  _btrfs_qgroup_show_raw="btrfs qgroup show"
+}
+
 # quota management
 sync
 btrfs qgroup show "$LOCATION" 2>&1 | grep -q "quotas not enabled" && {
@@ -41,32 +89,12 @@ btrfs qgroup show "$LOCATION" 2>&1 | grep -q "quotas not enabled" && {
 
 # if we just enabled quota, might have to wait for rescan using 'btrfs qgroup show'
 
-# determine if the '--si' option is supported:
-_btrfs_qgroup_show_si="btrfs qgroup show --si --sort=qgroupid"
-
-OUT=$( $_btrfs_qgroup_show_si 2>&1)
-
-# If you want to depend on bash string matching, replace the below grep with this:
-#if [[ "$OUT" == *"unrecognized option"* ]]; then
-#  echo "INFO: Legacy btrfs version; trying 'btrfs qgroup show' without '--si'..."
-#  _btrfs_qgroup_show_si="btrfs qgroup show --sort=qgroupid"
-#fi    
-    
-## This check fails to recognise the failure:    
-grep -q "unrecognized option" <<< "$OUT" && {
-  echo "INFO: Legacy btrfs version; trying 'btrfs qgroup show' without '--si'..."
-  # not supported by "Btrfs v3.12+20131125" and likekly other legacy versions
-  # luckily "Btrfs v3.12+20131125" gives the same output without '--si'
-  # as "btrfs-progs v4.13.3" does with '--si'
-  _btrfs_qgroup_show_si="btrfs qgroup show --sort=qgroupid"
-}
-
-OUT=$( $_btrfs_qgroup_show_si "$LOCATION" 2>&1 )
+OUT=$( $_btrfs_qgroup_show_raw "$LOCATION" 2>&1 )
 grep -q -e "rescan is running" -e "data inconsistent" <<< "$OUT" && {
   echo "INFO: Quota is disabled. Waiting for rescan to finish ..."
   while true; do
     sleep 2
-    OUT=$( $_btrfs_qgroup_show_si "$LOCATION" 2>&1 )
+    OUT=$( $_btrfs_qgroup_show_raw "$LOCATION" 2>&1 )
     grep -q -e "rescan is running" -e "data inconsistent" <<< "$OUT" || break
   done
 }
@@ -81,8 +109,10 @@ TOT_=( $( awk '{ print $2 }' <<< "$OUT" ) )
 EXC_=( $( awk '{ print $3 }' <<< "$OUT" ) )
 
 for (( i = 0 ; i < ${#ID__[@]} ; i++ )); do
-  TOT[${ID__[$i]}]=${TOT_[$i]}
-  EXC[${ID__[$i]}]=${EXC_[$i]}
+#  TOT[${ID__[$i]}]=${TOT_[$i]}
+#  EXC[${ID__[$i]}]=${EXC_[$i]}
+  TOT[${ID__[$i]}]=$( bytesToHumanIEC ${TOT_[$i]} )
+  EXC[${ID__[$i]}]=$( bytesToHumanIEC ${EXC_[$i]} )
 done
 
 ## naming data
@@ -94,47 +124,26 @@ for (( i = 0 ; i < ${#ID__[@]} ; i++ )); do
   NAME[${ID__[$i]}]=${NAM_[$i]}
 done
 
-# determine if the '--raw' option is supported:
-_btrfs_qgroup_show_raw="btrfs qgroup show --raw"
-
-EXCL_RAW=$( $_btrfs_qgroup_show_raw 2>&1)
-
-# If you want to depend on bash string matching, replace the below grep with this:
-#if [[ "$EXCL_RAW" == *"unrecognized option"* ]]; then
-#  echo "INFO: Legacy btrfs version; trying 'btrfs qgroup show' without '--raw'..."
-#  _btrfs_qgroup_show_raw="btrfs qgroup show"
-#fi    
-    
-## This check fails to recognise the failure:    
-grep -q "unrecognized option" <<< "$EXCL_RAW" && {
-  echo "INFO: Legacy btrfs version; trying 'btrfs qgroup show' without '--raw'..."
-  # not supported by "Btrfs v3.12+20131125" and likekly other legacy versions
-  # luckily "Btrfs v3.12+20131125" gives the same output without '--raw'
-  # as "btrfs-progs v4.13.3" does with '--raw'
-  _btrfs_qgroup_show_raw="btrfs qgroup show"
-}
-
 EXCL_RAW=( $( $_btrfs_qgroup_show_raw "$LOCATION" | sed '1,2d' | awk '{  print $3 }' ) )
 EXCL_TOTAL=0
 
 [[ "$QFLAG" == "1" ]] && btrfs quota disable "$LOCATION"
 
 # output
-printf "%-60s %-10s %-10s %-10s\n" "Subvolume" "Total" "Exclusive" "ID"
+printf "%-60s %10s %10s  %-10s\n" "Subvolume" "Total" "Exclusive" "ID"
 printf "─────────────────────────────────────────────────────────────────────────────────────────\n"
 
 ## matching by IDs in btrfs subvolume list
 for (( i = 0 ; i < ${#ID__[@]} ; i++ )); do
-  printf "%-60s %-10s %-10s %-10s\n" ${NAME[${ID__[$i]}]} ${TOT[${ID__[$i]}]} ${EXC[${ID__[$i]}]} ${ID__[$i]}
+  printf "%-60s %10s %10s  %-10s\n" ${NAME[${ID__[$i]}]} "${TOT[${ID__[$i]}]}" "${EXC[${ID__[$i]}]}" ${ID__[$i]}
   EXCL_TOTAL=$(( EXCL_TOTAL + ${EXCL_RAW[$i]} ))
 done
 
-EXCL_TOTAL=$( awk '{ sum=$1 ; hum[1024^4]="TB";hum[1024^3]="GB";hum[1024^2]="MB";hum[1024]="KB";
-              for (x=1024^4; x>=1024; x/=1024){ if (sum>=x) { printf "%.2f%s\n",sum/x,hum[x];break } }}' \
-              <<< "$EXCL_TOTAL" )
+#EXCL_TOTAL=$( bytesToHumanSI "$EXCL_TOTAL" )
+EXCL_TOTAL=$( bytesToHumanIEC "$EXCL_TOTAL" )
 
 printf "─────────────────────────────────────────────────────────────────────────────────────────\n"
-printf "%86s\n" "Total exclusive data: $EXCL_TOTAL"
+printf "%-60s %10s %10s  %-10s\n" "Total exclusive data:" "" "$EXCL_TOTAL" ""
 
 # License
 #
