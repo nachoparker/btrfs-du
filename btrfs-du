@@ -39,13 +39,34 @@ btrfs qgroup show "$LOCATION" 2>&1 | grep -q "quotas not enabled" && {
   btrfs quota enable "$LOCATION"
 }
 
-# if we just enabled quota, might have to wait for rescan
-OUT=$( btrfs qgroup show --si --sort=qgroupid "$LOCATION" 2>&1 )
+# if we just enabled quota, might have to wait for rescan using 'btrfs qgroup show'
+
+# determine if the '--si' option is supported:
+_btrfs_qgroup_show_si="btrfs qgroup show --si --sort=qgroupid"
+
+OUT=$( $_btrfs_qgroup_show_si 2>&1)
+
+# If you want to depend on bash string matching, replace the below grep with this:
+#if [[ "$OUT" == *"unrecognized option"* ]]; then
+#  echo "INFO: Legacy btrfs version; trying 'btrfs qgroup show' without '--si'..."
+#  _btrfs_qgroup_show_si="btrfs qgroup show --sort=qgroupid"
+#fi    
+    
+## This check fails to recognise the failure:    
+grep -q "unrecognized option" <<< "$OUT" && {
+  echo "INFO: Legacy btrfs version; trying 'btrfs qgroup show' without '--si'..."
+  # not supported by "Btrfs v3.12+20131125" and likekly other legacy versions
+  # luckily "Btrfs v3.12+20131125" gives the same output without '--si'
+  # as "btrfs-progs v4.13.3" does with '--si'
+  _btrfs_qgroup_show_si="btrfs qgroup show --sort=qgroupid"
+}
+
+OUT=$( $_btrfs_qgroup_show_si "$LOCATION" 2>&1 )
 grep -q -e "rescan is running" -e "data inconsistent" <<< "$OUT" && {
   echo "INFO: Quota is disabled. Waiting for rescan to finish ..."
   while true; do
     sleep 2
-    OUT=$( btrfs qgroup show --si --sort=qgroupid "$LOCATION" 2>&1 )
+    OUT=$( $_btrfs_qgroup_show_si "$LOCATION" 2>&1 )
     grep -q -e "rescan is running" -e "data inconsistent" <<< "$OUT" || break
   done
 }
@@ -73,7 +94,27 @@ for (( i = 0 ; i < ${#ID__[@]} ; i++ )); do
   NAME[${ID__[$i]}]=${NAM_[$i]}
 done
 
-EXCL_RAW=( $( btrfs qgroup show --raw "$LOCATION" | sed '1,2d' | awk '{  print $3 }' ) )
+# determine if the '--raw' option is supported:
+_btrfs_qgroup_show_raw="btrfs qgroup show --raw"
+
+EXCL_RAW=$( $_btrfs_qgroup_show_raw 2>&1)
+
+# If you want to depend on bash string matching, replace the below grep with this:
+#if [[ "$EXCL_RAW" == *"unrecognized option"* ]]; then
+#  echo "INFO: Legacy btrfs version; trying 'btrfs qgroup show' without '--raw'..."
+#  _btrfs_qgroup_show_raw="btrfs qgroup show"
+#fi    
+    
+## This check fails to recognise the failure:    
+grep -q "unrecognized option" <<< "$EXCL_RAW" && {
+  echo "INFO: Legacy btrfs version; trying 'btrfs qgroup show' without '--raw'..."
+  # not supported by "Btrfs v3.12+20131125" and likekly other legacy versions
+  # luckily "Btrfs v3.12+20131125" gives the same output without '--raw'
+  # as "btrfs-progs v4.13.3" does with '--raw'
+  _btrfs_qgroup_show_raw="btrfs qgroup show"
+}
+
+EXCL_RAW=( $( $_btrfs_qgroup_show_raw "$LOCATION" | sed '1,2d' | awk '{  print $3 }' ) )
 EXCL_TOTAL=0
 
 [[ "$QFLAG" == "1" ]] && btrfs quota disable "$LOCATION"
