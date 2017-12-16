@@ -78,7 +78,6 @@ grep -q -e "rescan is running" -e "data inconsistent" <<< "$OUT" && {
 }
 
 # data
-declare -A TOT EXCL NAME
 
 ## qgroup data
 OUT=$( sed '1,3d;s|^.*/||' <<< "$OUT" )
@@ -120,7 +119,7 @@ done
 EXCL_TOTAL=$( bytesToHumanIEC "$EXCL_TOTAL" )
 
 printf "$separatorLine"
-printf "$formatMask" "Total exclusive data:" "" "$EXCL_TOTAL" ""
+printf "%s %66s\n" "Total exclusive data" "$EXCL_TOTAL"
 
 # License
 #
