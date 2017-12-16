@@ -14,6 +14,19 @@
 # More at https://ownyourbits.com/2017/12/06/check-disk-space-of-your-btrfs-snapshots-with-btrfs-du/
 #
 
+# bytesToHumanIEC based on https://unix.stackexchange.com/questions/44040/a-standard-tool-to-convert-a-byte-count-into-human-kib-mib-etc-like-du-ls1/259254#259254
+# both bytesToHumanIEC, an SI implementatation and test cases for both are at https://gist.github.com/jpluimers/0f21bf1d937fe0b9b4044f21944a90ec
+
+bytesToHumanIEC() {
+    b=${1:-0}; d=''; s=0; S=(Bytes {K,M,G,T,E,P,Z,Y}iB)
+    while ((b > 1024)); do
+        d="$(printf ".%02d" $((b % 1024 * 100 / 1024)))"
+        b=$((b / 1024))
+        let s++
+    done
+    echo "$b$d${S[$s]}"
+}
+
 LOCATION=${1:-/}
 
 # checks
@@ -32,6 +45,19 @@ LOCATION=${1:-/}
   exit 1
 }
 
+# determine if the '--raw' option is supported:
+btrfs_qgroup_show_raw="btrfs qgroup show --raw"
+
+OUT=$( $btrfs_qgroup_show_raw 2>&1 )
+
+grep -q "unrecognized option" <<< "$OUT" && {
+  echo "INFO: Legacy btrfs version; trying 'btrfs qgroup show' without '--raw'..."
+  # not supported by "Btrfs v3.12+20131125" and likekly other legacy versions
+  # luckily "Btrfs v3.12+20131125" gives the same output without '--raw'
+  # as "btrfs-progs v4.13.3" does with '--raw'
+  btrfs_qgroup_show_raw="btrfs qgroup show"
+}
+
 # quota management
 sync
 btrfs qgroup show "$LOCATION" 2>&1 | grep -q "quotas not enabled" && {
@@ -39,13 +65,14 @@ btrfs qgroup show "$LOCATION" 2>&1 | grep -q "quotas not enabled" && {
   btrfs quota enable "$LOCATION"
 }
 
-# if we just enabled quota, might have to wait for rescan
-OUT=$( btrfs qgroup show --si --sort=qgroupid "$LOCATION" 2>&1 )
+# if we just enabled quota, might have to wait for rescan using 'btrfs qgroup show'
+
+OUT=$( $btrfs_qgroup_show_raw "$LOCATION" 2>&1 )
 grep -q -e "rescan is running" -e "data inconsistent" <<< "$OUT" && {
   echo "INFO: Quota is disabled. Waiting for rescan to finish ..."
   while true; do
     sleep 2
-    OUT=$( btrfs qgroup show --si --sort=qgroupid "$LOCATION" 2>&1 )
+    OUT=$( $btrfs_qgroup_show_raw "$LOCATION" 2>&1 )
     grep -q -e "rescan is running" -e "data inconsistent" <<< "$OUT" || break
   done
 }
@@ -60,8 +87,8 @@ TOT_=( $( awk '{ print $2 }' <<< "$OUT" ) )
 EXC_=( $( awk '{ print $3 }' <<< "$OUT" ) )
 
 for (( i = 0 ; i < ${#ID__[@]} ; i++ )); do
-  TOT[${ID__[$i]}]=${TOT_[$i]}
-  EXC[${ID__[$i]}]=${EXC_[$i]}
+  TOT[${ID__[$i]}]=$( bytesToHumanIEC ${TOT_[$i]} )
+  EXC[${ID__[$i]}]=$( bytesToHumanIEC ${EXC_[$i]} )
 done
 
 ## naming data
@@ -73,27 +100,27 @@ for (( i = 0 ; i < ${#ID__[@]} ; i++ )); do
   NAME[${ID__[$i]}]=${NAM_[$i]}
 done
 
-EXCL_RAW=( $( btrfs qgroup show --raw "$LOCATION" | sed '1,2d' | awk '{  print $3 }' ) )
 EXCL_TOTAL=0
 
 [[ "$QFLAG" == "1" ]] && btrfs quota disable "$LOCATION"
 
+formatMask="%-60s %10s %10s  %-10s\n"
+separatorLine="─────────────────────────────────────────────────────────────────────────────────────────\n"
+
 # output
-printf "%-60s %-10s %-10s %-10s\n" "Subvolume" "Total" "Exclusive" "ID"
-printf "─────────────────────────────────────────────────────────────────────────────────────────\n"
+printf "$formatMask" "Subvolume" "Total" "Exclusive" "ID"
+printf "$separatorLine"
 
 ## matching by IDs in btrfs subvolume list
 for (( i = 0 ; i < ${#ID__[@]} ; i++ )); do
-  printf "%-60s %-10s %-10s %-10s\n" ${NAME[${ID__[$i]}]} ${TOT[${ID__[$i]}]} ${EXC[${ID__[$i]}]} ${ID__[$i]}
-  EXCL_TOTAL=$(( EXCL_TOTAL + ${EXCL_RAW[$i]} ))
+  printf "$formatMask" ${NAME[${ID__[$i]}]} "${TOT[${ID__[$i]}]}" "${EXC[${ID__[$i]}]}" ${ID__[$i]}
+  EXCL_TOTAL=$(( EXCL_TOTAL + ${EXC_[$i]} ))
 done
 
-EXCL_TOTAL=$( awk '{ sum=$1 ; hum[1024^4]="TB";hum[1024^3]="GB";hum[1024^2]="MB";hum[1024]="KB";
-              for (x=1024^4; x>=1024; x/=1024){ if (sum>=x) { printf "%.2f%s\n",sum/x,hum[x];break } }}' \
-              <<< "$EXCL_TOTAL" )
+EXCL_TOTAL=$( bytesToHumanIEC "$EXCL_TOTAL" )
 
-printf "─────────────────────────────────────────────────────────────────────────────────────────\n"
-printf "%86s\n" "Total exclusive data: $EXCL_TOTAL"
+printf "$separatorLine"
+printf "$formatMask" "Total exclusive data:" "" "$EXCL_TOTAL" ""
 
 # License
 #
