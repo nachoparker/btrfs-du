@@ -6,18 +6,19 @@ Easily print BTRFS subvolume/snapshot disk usage
 ```
 # btrfs-du /home
 
-Snapshot                       Total      Exclusive  ID
-────────────────────────────────────────────────────────────
-.snapshot2017-08-09            68.89GB    1.90GB     343
-.snapshot2017-08-10            81.36GB    111.10MB   346
-.snapshot2017-08-11            81.37GB    108.49MB   347
-.snapshot2017-08-23            81.38GB    539.47MB   348
-.snapshot2017-09-05            81.68GB    595.71MB   349
-.snapshot2017-10-11            82.32GB    680.01MB   391
-.snapshot2017-11-13            68.20GB    2.91GB     392
-.snapshot2017-11-29            67.41GB    1.18GB     410
-────────────────────────────────────────────────────────────
-                            Total exclusive data: 7.48GB
+Subvolume                                                         Total  Exclusive  ID
+─────────────────────────────────────────────────────────────────────────────────────────
+.snapshot2017-08-09                                            75.77GiB  105.95MiB  343
+.snapshot2017-08-10                                            75.78GiB  103.46MiB  346
+.snapshot2017-08-11                                            75.78GiB  514.47MiB  347
+.snapshot2017-08-23                                            76.07GiB  568.11MiB  348
+.snapshot2017-09-05                                            76.66GiB  648.50MiB  349
+.snapshot2017-10-11                                            63.51GiB    2.71GiB  391
+.snapshot2017-11-13                                            62.78GiB    1.09GiB  392
+.snapshot2017-11-29                                            63.40GiB  974.05MiB  410
+.snapshot2017-12-11                                            64.21GiB  682.08MiB  455
+─────────────────────────────────────────────────────────────────────────────────────────
+Total exclusive data                                                            7.32GiB
 ```
 
 Without arguments, defaults to `/`

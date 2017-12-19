@@ -9,6 +9,8 @@
 # Copyleft 2017 by Ignacio Nunez Hernanz <nacho _a_t_ ownyourbits _d_o_t_ com>
 # GPL licensed (see end of file) * Use at your own risk!
 #
+# Contributors: Jeroen Wiert Pluimers (jpluimers)
+#
 # Based on btrfs-size by Kyle Agronick
 #
 # More at https://ownyourbits.com/2017/12/06/check-disk-space-of-your-btrfs-snapshots-with-btrfs-du/
