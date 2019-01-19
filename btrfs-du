@@ -52,7 +52,12 @@ btrfs_qgroup_show_raw="btrfs qgroup show --raw"
 
 OUT=$( $btrfs_qgroup_show_raw 2>&1 )
 
-grep -q "unrecognized option" <<< "$OUT" && {
+grep -q -e "No such file or directory" <<< "$OUT" && {
+  echo "old btrfs-tools detected, need to enable quota and wait for rescan to display accurate results"
+  exit 1
+}
+
+grep -q -e "unrecognized option" <<< "$OUT" && {
   echo "INFO: Legacy btrfs version; trying 'btrfs qgroup show' without '--raw'..."
   # not supported by "Btrfs v3.12+20131125" and likekly other legacy versions
   # luckily "Btrfs v3.12+20131125" gives the same output without '--raw'
