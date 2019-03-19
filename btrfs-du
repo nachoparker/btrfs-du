@@ -50,9 +50,9 @@ LOCATION=${1:-/}
 # determine if the '--raw' option is supported:
 btrfs_qgroup_show_raw="btrfs qgroup show --raw"
 
-OUT=$( $btrfs_qgroup_show_raw 2>&1 )
+OUT=$( $btrfs_qgroup_show_raw "$LOCATION" 2>&1 )
 
-grep -q -e "No such file or directory" <<< "$OUT" && {
+grep -i -q -e "no such file or directory" <<< "$OUT" && {
   echo "old btrfs-tools detected, need to enable quota and wait for rescan to display accurate results"
   exit 1
 }
@@ -75,12 +75,12 @@ btrfs qgroup show "$LOCATION" 2>&1 | grep -q "quotas not enabled" && {
 # if we just enabled quota, might have to wait for rescan using 'btrfs qgroup show'
 
 OUT=$( $btrfs_qgroup_show_raw "$LOCATION" 2>&1 )
-grep -q -e "rescan is running" -e "data inconsistent" <<< "$OUT" && {
+grep -i -q -e "rescan is running" -e "data inconsistent" <<< "$OUT" && {
   echo "INFO: Quota is disabled. Waiting for rescan to finish ..."
   while true; do
     sleep 2
     OUT=$( $btrfs_qgroup_show_raw "$LOCATION" 2>&1 )
-    grep -q -e "rescan is running" -e "data inconsistent" <<< "$OUT" || break
+    grep -i -q -e "rescan is running" -e "data inconsistent" <<< "$OUT" || break
   done
 }
 
@@ -120,7 +120,8 @@ printf "$separatorLine"
 ## matching by IDs in btrfs subvolume list
 for (( i = 0 ; i < ${#ID__[@]} ; i++ )); do
   printf "$formatMask" ${NAME[${ID__[$i]}]} "${TOT[${ID__[$i]}]}" "${EXC[${ID__[$i]}]}" ${ID__[$i]}
-  EXCL_TOTAL=$(( EXCL_TOTAL + ${EXC_[$i]} ))
+  EXC_TMP=${EXC_[$i]}
+  EXCL_TOTAL=$(( EXCL_TOTAL + EXC_TMP ))
 done
 
 EXCL_TOTAL=$( bytesToHumanIEC "$EXCL_TOTAL" )
