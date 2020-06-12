@@ -29,7 +29,26 @@ bytesToHumanIEC() {
     echo "$b$d${S[$s]}"
 }
 
-LOCATION=${1:-/}
+BTRFS_OPT=""
+
+while [ ${#} -gt 0 ]; do
+  case "${1}" in
+      -h)
+          echo -en "btrfs-du [-o] <PATH_to_BTRFS-mount>\n\n"
+          echo -en "-o\t\tprint only subvolumes below specified path\n"
+          echo -en "-h\t\tprint help\n"
+          exit 0
+          ;;
+      -o)
+          BTRFS_OPT=" -o "
+          shift
+          ;;
+      *)
+        LOCATION=${1:-/}
+        shift
+        ;;
+  esac
+done
 
 # checks
 [[ ${EUID} -ne 0 ]] && {
@@ -98,7 +117,7 @@ for (( i = 0 ; i < ${#ID__[@]} ; i++ )); do
 done
 
 ## naming data
-OUT=$( btrfs subvolume list --sort=rootid "$LOCATION" | cut -d ' ' -f 2,9 )
+OUT=$( btrfs subvolume list --sort=rootid ${BTRFS_OPT} "$LOCATION" | cut -d ' ' -f 2,9 )
 ID__=( $( awk '{ print $1 }' <<< "$OUT" ) )
 NAM_=( $( awk '{ print $2 }' <<< "$OUT" ) )
 
