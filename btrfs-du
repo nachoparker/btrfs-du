@@ -98,12 +98,12 @@ for (( i = 0 ; i < ${#ID__[@]} ; i++ )); do
 done
 
 ## naming data
-OUT=$( btrfs subvolume list --sort=rootid "$LOCATION" | cut -d ' ' -f 2,9 )
-ID__=( $( awk '{ print $1 }' <<< "$OUT" ) )
-NAM_=( $( awk '{ print $2 }' <<< "$OUT" ) )
+OUT=$( btrfs subvolume list -t --sort=rootid "$LOCATION"| tail -n +3 )
+ID__=( $( awk -F "\t" '{ print $1 }' <<< "$OUT" ) )
+NAM_=( $( awk -F "\t" '{ print $5 }' <<< "$OUT" ) )
 
 for (( i = 0 ; i < ${#ID__[@]} ; i++ )); do
-  NAME[${ID__[$i]}]=${NAM_[$i]}
+  NAME[${ID__[$i]}]="${NAM_[$i]}"
 done
 
 EXCL_TOTAL=0
