@@ -20,27 +20,37 @@
 # both bytesToHumanIEC, an SI implementatation and test cases for both are at https://gist.github.com/jpluimers/0f21bf1d937fe0b9b4044f21944a90ec
 
 bytesToHumanIEC() {
-    b=${1:-0}; d=''; s=0; S=(Bytes {K,M,G,T,E,P,Z,Y}iB)
-    while ((b > 1024)); do
-        d="$(printf ".%02d" $((b % 1024 * 100 / 1024)))"
-        b=$((b / 1024))
-        let s++
-    done
-    echo "$b$d${S[$s]}"
+    if [ "$RAW_NUMBERS" = "1" ]; then
+        echo "${1}"
+    else
+        b=${1:-0}; d=''; s=0; S=(Bytes {K,M,G,T,E,P,Z,Y}iB)
+        while ((b > 1024)); do
+            d="$(printf ".%02d" $((b % 1024 * 100 / 1024)))"
+            b=$((b / 1024))
+            let s++
+        done
+        echo "$b$d${S[$s]}"
+    fi
 }
 
 BTRFS_OPT=""
+RAW_NUMBERS=""
 
 while [ ${#} -gt 0 ]; do
   case "${1}" in
       -h)
-          echo -en "btrfs-du [-o] <PATH_to_BTRFS-mount>\n\n"
+          echo -en "btrfs-du [-o] [-b] <PATH_to_BTRFS-mount>\n\n"
           echo -en "-o\t\tprint only subvolumes below specified path\n"
+          echo -en "-b\t\tprint numbers raw (in bytes)\n"
           echo -en "-h\t\tprint help\n"
           exit 0
           ;;
       -o)
           BTRFS_OPT=" -o "
+          shift
+          ;;
+      -b)
+          RAW_NUMBERS="1"
           shift
           ;;
       *)
