@@ -117,9 +117,9 @@ grep -i -q -e "rescan is running" -e "data inconsistent" <<< "$OUT" && {
 
 ## qgroup data
 OUT=$( sed '1,3d;s|^.*/||' <<< "$OUT" )
-ID__=( $( awk '{ print $1 }' <<< "$OUT" ) )
-TOT_=( $( awk '{ print $2 }' <<< "$OUT" ) )
-EXC_=( $( awk '{ print $3 }' <<< "$OUT" ) )
+readarray -t ID__ < <( awk '{ print $1 }' <<< "$OUT" )
+readarray -t TOT_ < <( awk '{ print $2 }' <<< "$OUT" )
+readarray -t EXC_ < <( awk '{ print $3 }' <<< "$OUT" )
 
 for (( i = 0 ; i < ${#ID__[@]} ; i++ )); do
   TOT[${ID__[$i]}]=$( bytesToHumanIEC ${TOT_[$i]} )
@@ -128,8 +128,8 @@ done
 
 ## naming data
 OUT=$( btrfs subvolume list -t --sort=rootid ${BTRFS_OPT} "$LOCATION"| tail -n +3 )
-ID__=( $( awk -F "\t" '{ print $1 }' <<< "$OUT" ) )
-NAM_=( $( awk -F "\t" '{ print $5 }' <<< "$OUT" ) )
+readarray -t ID__ < <( awk -F "\t" '{ print $1 }' <<< "$OUT" )
+readarray -t NAM_ < <( awk -F "\t" '{ print $5 }' <<< "$OUT" )
 
 for (( i = 0 ; i < ${#ID__[@]} ; i++ )); do
   NAME[${ID__[$i]}]=${NAM_[$i]}
@@ -148,7 +148,7 @@ printf "$separatorLine"
 
 ## matching by IDs in btrfs subvolume list
 for (( i = 0 ; i < ${#ID__[@]} ; i++ )); do
-  printf "$formatMask" ${NAME[${ID__[$i]}]} "${TOT[${ID__[$i]}]}" "${EXC[${ID__[$i]}]}" ${ID__[$i]}
+  printf "$formatMask" "${NAME[${ID__[$i]}]}" "${TOT[${ID__[$i]}]}" "${EXC[${ID__[$i]}]}" ${ID__[$i]}
   EXC_TMP=${EXC_[$i]}
   EXCL_TOTAL=$(( EXCL_TOTAL + EXC_TMP ))
 done
