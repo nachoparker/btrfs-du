@@ -129,10 +129,10 @@ done
 ## naming data
 OUT=$( btrfs subvolume list -t --sort=rootid ${BTRFS_OPT} "$LOCATION"| tail -n +3 )
 ID__=( $( awk -F "\t" '{ print $1 }' <<< "$OUT" ) )
-NAM_=( $( awk -F "\t" '{ print $5 }' <<< "$OUT" ) )
+IFS=$'\n' read -d '' -r -a NAM_ < <( awk -F "\t" '{ print $5 }' <<< "$OUT" )
 
 for (( i = 0 ; i < ${#ID__[@]} ; i++ )); do
-  NAME[${ID__[$i]}]=${NAM_[$i]}
+  NAME[${ID__[$i]}]="${NAM_[$i]}"
 done
 
 EXCL_TOTAL=0
@@ -148,7 +148,7 @@ printf "$separatorLine"
 
 ## matching by IDs in btrfs subvolume list
 for (( i = 0 ; i < ${#ID__[@]} ; i++ )); do
-  printf "$formatMask" ${NAME[${ID__[$i]}]} "${TOT[${ID__[$i]}]}" "${EXC[${ID__[$i]}]}" ${ID__[$i]}
+  printf "$formatMask" "${NAME[${ID__[$i]}]}" "${TOT[${ID__[$i]}]}" "${EXC[${ID__[$i]}]}" ${ID__[$i]}
   EXC_TMP=${EXC_[$i]}
   EXCL_TOTAL=$(( EXCL_TOTAL + EXC_TMP ))
 done
@@ -174,3 +174,4 @@ printf "%s %66s\n" "Total exclusive data" "$EXCL_TOTAL"
 # along with this script; if not, write to the
 # Free Software Foundation, Inc., 59 Temple Place, Suite 330,
 # Boston, MA  02111-1307  USA
+
