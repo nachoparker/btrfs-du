@@ -97,7 +97,8 @@ grep -q -e "unrecognized option" <<< "$OUT" && {
 # quota management
 sync
 btrfs qgroup show "$LOCATION" 2>&1 | grep -q "quotas not enabled" && {
-  QFLAG=1
+  # disable quota again on exit, even if we are interrupted while waiting for the rescan
+  trap 'btrfs quota disable "$LOCATION"' EXIT
   btrfs quota enable "$LOCATION"
 }
 
@@ -136,8 +137,6 @@ for (( i = 0 ; i < ${#ID__[@]} ; i++ )); do
 done
 
 EXCL_TOTAL=0
-
-[[ "$QFLAG" == "1" ]] && btrfs quota disable "$LOCATION"
 
 formatMask="%-60s %10s %10s  %-10s\n"
 separatorLine="─────────────────────────────────────────────────────────────────────────────────────────\n"
