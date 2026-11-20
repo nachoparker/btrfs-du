@@ -116,7 +116,9 @@ grep -i -q -e "rescan is running" -e "data inconsistent" <<< "$OUT" && {
 # data
 
 ## qgroup data
-OUT=$( sed '1,3d;s|^.*/||' <<< "$OUT" )
+# keep only the level 0 qgroups ("0/<subvolume ID> <referenced> <exclusive> [<path>]"),
+# skipping headers, warnings, higher level qgroups and the path column of newer btrfs-progs
+OUT=$( awk '$1 ~ /^0\/[0-9]+$/ { sub(/^0\//, "", $1); print $1, $2, $3 }' <<< "$OUT" )
 ID__=( $( awk '{ print $1 }' <<< "$OUT" ) )
 TOT_=( $( awk '{ print $2 }' <<< "$OUT" ) )
 EXC_=( $( awk '{ print $3 }' <<< "$OUT" ) )
