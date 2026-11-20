@@ -95,7 +95,9 @@ grep -q -e "unrecognized option" <<< "$OUT" && {
 }
 
 # quota management
-sync
+# commit the filesystem so the qgroup numbers include recent writes
+# (a plain 'sync' would wait for every other filesystem on the system too)
+btrfs filesystem sync "$LOCATION"
 btrfs qgroup show "$LOCATION" 2>&1 | grep -q "quotas not enabled" && {
   QFLAG=1
   btrfs quota enable "$LOCATION"
