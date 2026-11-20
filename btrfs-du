@@ -101,16 +101,17 @@ btrfs qgroup show "$LOCATION" 2>&1 | grep -q "quotas not enabled" && {
   btrfs quota enable "$LOCATION"
 }
 
-# if we just enabled quota, might have to wait for rescan using 'btrfs qgroup show'
+# if we just enabled quota, a rescan is running and we have to wait for it to finish.
+# the qgroup data can also become inconsistent later on, and then nothing will rescan
+# it unless we do: 'quota rescan -w' starts a rescan if needed and waits for it either way
 
 OUT=$( $btrfs_qgroup_show_raw "$LOCATION" 2>&1 )
 grep -i -q -e "rescan is running" -e "data inconsistent" <<< "$OUT" && {
-  echo "INFO: Quota is disabled. Waiting for rescan to finish ..."
-  while true; do
-    sleep 2
-    OUT=$( $btrfs_qgroup_show_raw "$LOCATION" 2>&1 )
-    grep -i -q -e "rescan is running" -e "data inconsistent" <<< "$OUT" || break
-  done
+  echo "INFO: Qgroup data is not up to date. Waiting for rescan to finish ..."
+  btrfs quota rescan -w "$LOCATION" > /dev/null
+  OUT=$( $btrfs_qgroup_show_raw "$LOCATION" 2>&1 )
+  grep -i -q -e "rescan is running" -e "data inconsistent" <<< "$OUT" && \
+    echo "WARNING: Qgroup data is still inconsistent after rescan, sizes may be inaccurate"
 }
 
 # data
