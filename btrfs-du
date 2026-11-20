@@ -35,6 +35,7 @@ bytesToHumanIEC() {
 
 BTRFS_OPT=""
 RAW_NUMBERS=""
+LOCATION="/"
 
 while [ ${#} -gt 0 ]; do
   case "${1}" in
